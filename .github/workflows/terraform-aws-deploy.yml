@@ -80,12 +80,18 @@ jobs:
             -var="bucket_name=${{ github.event.inputs.bucket_name }}" \
             -var="aws_region=${{ github.event.inputs.aws_region }}" \
             -var="environment=${{ github.event.inputs.environment }}" \
-            -out=tfplan
+            
 
       - name: Terraform Apply
         if: github.event.inputs.action == 'apply'
         working-directory: ${{ env.TF_WORKING_DIR }}
-        run: terraform apply -auto-approve tfplan
+        run: |
+          terraform apply \
+            -auto-approve \
+            -var="bucket_name=${{ github.event.inputs.bucket_name }}" \
+            -var="aws_region=${{ github.event.inputs.aws_region }}" \
+            -var="environment=${{ github.event.inputs.environment }}"
+
 
       - name: Terraform Destroy
         if: github.event.inputs.action == 'destroy'
