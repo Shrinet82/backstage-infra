@@ -8,7 +8,7 @@ terraform {
 
   # Terraform Cloud backend
   cloud {
-    organization = "YOUR_TFC_ORG"
+    organization = "Shrinet82"
     workspaces {
       name = "backstage-aws"
     }
