@@ -1,0 +1,103 @@
+name: Terraform Deploy to AWS
+
+on:
+  workflow_dispatch:
+    inputs:
+      bucket_name:
+        description: 'S3 Bucket name (globally unique)'
+        required: true
+        type: string
+      aws_region:
+        description: 'AWS Region'
+        required: false
+        type: string
+        default: 'us-east-1'
+      environment:
+        description: 'Environment tag'
+        required: false
+        type: string
+        default: development
+      action:
+        description: 'Action to perform'
+        required: true
+        type: choice
+        options:
+          - plan
+          - apply
+          - destroy
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  TF_VERSION: '1.5.0'
+  TF_WORKING_DIR: './infrastructure/aws'
+
+jobs:
+  terraform:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::391183495225:role/GitHubActionsRole
+          aws-region: ${{ github.event.inputs.aws_region || 'us-east-1' }}
+
+      - name: Show AWS identity
+        run: aws sts get-caller-identity
+
+      - name: Setup Terraform Cloud creds
+        run: |
+          mkdir -p $HOME/.terraform.d
+          cat > $HOME/.terraform.d/credentials.tfrc.json <<EOF
+          {
+            "credentials": {
+              "app.terraform.io": {
+                "token": "${{ secrets.TF_CLOUD_TOKEN }}"
+              }
+            }
+          }
+          EOF
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Terraform Init
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: terraform init
+
+      - name: Terraform Plan
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: |
+          terraform plan \
+            -var="bucket_name=${{ github.event.inputs.bucket_name }}" \
+            -var="aws_region=${{ github.event.inputs.aws_region }}" \
+            -var="environment=${{ github.event.inputs.environment }}" \
+            -out=tfplan
+
+      - name: Terraform Apply
+        if: github.event.inputs.action == 'apply'
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: terraform apply -auto-approve tfplan
+
+      - name: Terraform Destroy
+        if: github.event.inputs.action == 'destroy'
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: |
+          terraform destroy \
+            -var="bucket_name=${{ github.event.inputs.bucket_name }}" \
+            -var="aws_region=${{ github.event.inputs.aws_region }}" \
+            -var="environment=${{ github.event.inputs.environment }}" \
+            -auto-approve
+
+      - name: Terraform Output
+        if: github.event.inputs.action == 'apply'
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: terraform output
