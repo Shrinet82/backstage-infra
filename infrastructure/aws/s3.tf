@@ -44,7 +44,22 @@ resource "aws_s3_bucket" "backstage_bucket" {
   }
 }
 
+output "bucket_arn" {
+  value       = aws_s3_bucket.backstage_bucket.arn
+  description = "ARN of the created S3 bucket"
+}
+
 output "bucket_name" {
   value       = aws_s3_bucket.backstage_bucket.id
-  description = "Name of the S3 bucket"
+  description = "Name of the created S3 bucket"
+}
+
+output "bucket_region" {
+  value       = var.aws_region
+  description = "Region of the S3 bucket"
+}
+
+output "bucket_environment" {
+  value       = var.environment
+  description = "Environment tag of the bucket"
 }
