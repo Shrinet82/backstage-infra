@@ -69,6 +69,7 @@ jobs:
         with:
           terraform_version: ${{ env.TF_VERSION }}
           terraform_wrapper: false
+
       - name: Terraform Init
         working-directory: ${{ env.TF_WORKING_DIR }}
         run: terraform init
@@ -79,8 +80,7 @@ jobs:
           terraform plan \
             -var="bucket_name=${{ github.event.inputs.bucket_name }}" \
             -var="aws_region=${{ github.event.inputs.aws_region }}" \
-            -var="environment=${{ github.event.inputs.environment }}" \
-            
+            -var="environment=${{ github.event.inputs.environment }}"
 
       - name: Terraform Apply
         if: github.event.inputs.action == 'apply'
@@ -91,7 +91,6 @@ jobs:
             -var="bucket_name=${{ github.event.inputs.bucket_name }}" \
             -var="aws_region=${{ github.event.inputs.aws_region }}" \
             -var="environment=${{ github.event.inputs.environment }}"
-
 
       - name: Terraform Destroy
         if: github.event.inputs.action == 'destroy'
@@ -108,6 +107,7 @@ jobs:
         working-directory: ${{ env.TF_WORKING_DIR }}
         run: terraform output
 
+      # --- CREATE YAML STEP ---
       - name: Generate Backstage Resource Entity
         if: ${{ github.event.inputs.action == 'apply' }}
         working-directory: ${{ env.TF_WORKING_DIR }}
@@ -135,7 +135,7 @@ jobs:
             system: opsie-platform
           EOF
 
-      - name: Commit Resource Entity to Catalog (same repo)
+      - name: Commit Resource Entity to Catalog (Create)
         if: ${{ github.event.inputs.action == 'apply' }}
         working-directory: ${{ github.workspace }}
         run: |
@@ -145,6 +145,28 @@ jobs:
           mkdir -p catalog/resources
           cp /tmp/backstage-resources/resource-${{ github.event.inputs.bucket_name }}.yaml catalog/resources/
 
+          git pull origin main --rebase || echo "Already up to date"
           git add catalog/resources/resource-${{ github.event.inputs.bucket_name }}.yaml
           git commit -m "Add Backstage Resource for ${{ github.event.inputs.bucket_name }}" || echo "Nothing to commit"
           git push
+
+      # --- DELETE YAML STEP (NEW) ---
+      - name: Delete Resource Entity from Catalog (Destroy)
+        if: ${{ github.event.inputs.action == 'destroy' }}
+        working-directory: ${{ github.workspace }}
+        run: |
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          
+          # Pull latest to avoid conflicts
+          git pull origin main --rebase || echo "Already up to date"
+
+          RESOURCE_FILE="catalog/resources/resource-${{ github.event.inputs.bucket_name }}.yaml"
+          
+          if [ -f "$RESOURCE_FILE" ]; then
+            git rm "$RESOURCE_FILE"
+            git commit -m "Remove Backstage Resource for ${{ github.event.inputs.bucket_name }}"
+            git push
+          else
+            echo "File $RESOURCE_FILE does not exist, nothing to delete."
+          fi
