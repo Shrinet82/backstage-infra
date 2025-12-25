@@ -1,0 +1,8 @@
+apiVersion: backstage.io/v1alpha1
+kind: Location
+metadata:
+  name: backstage-infra-resources
+  description: Ingests all resources from this repo
+spec:
+  targets:
+    - ./catalog/resources/*.yaml
