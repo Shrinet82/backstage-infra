@@ -1,0 +1,166 @@
+name: Terraform VPC
+
+on:
+  workflow_dispatch:
+    inputs:
+      vpc_name:
+        description: 'VPC Name tag'
+        required: true
+        type: string
+      cidr_block:
+        description: 'VPC CIDR block, e.g. 10.10.0.0/16'
+        required: true
+        type: string
+      aws_region:
+        description: 'AWS Region'
+        required: false
+        type: string
+        default: 'us-east-1'
+      action:
+        description: 'Action to perform'
+        required: true
+        type: choice
+        options:
+          - plan
+          - apply
+          - destroy
+
+permissions:
+  id-token: write
+  contents: write
+
+env:
+  TF_VERSION: '1.5.0'
+  TF_WORKING_DIR: './infrastructure/aws/vpc'
+
+jobs:
+  terraform:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::391183495225:role/GitHubActionsRole
+          aws-region: ${{ github.event.inputs.aws_region || 'us-east-1' }}
+
+      - name: Setup Terraform Cloud creds
+        run: |
+          mkdir -p $HOME/.terraform.d
+          cat > $HOME/.terraform.d/credentials.tfrc.json <<EOF
+          {
+            "credentials": {
+              "app.terraform.io": {
+                "token": "${{ secrets.TF_CLOUD_TOKEN }}"
+              }
+            }
+          }
+          EOF
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+          terraform_wrapper: false
+
+      - name: Terraform Init
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: terraform init
+
+      - name: Terraform Plan
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: |
+          terraform plan \
+            -var="vpc_name=${{ github.event.inputs.vpc_name }}" \
+            -var="cidr_block=${{ github.event.inputs.cidr_block }}" \
+            -var="aws_region=${{ github.event.inputs.aws_region }}"
+
+      - name: Terraform Apply
+        if: github.event.inputs.action == 'apply'
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: |
+          terraform apply \
+            -auto-approve \
+            -var="vpc_name=${{ github.event.inputs.vpc_name }}" \
+            -var="cidr_block=${{ github.event.inputs.cidr_block }}" \
+            -var="aws_region=${{ github.event.inputs.aws_region }}"
+
+      - name: Terraform Destroy
+        if: github.event.inputs.action == 'destroy'
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: |
+          terraform destroy \
+            -auto-approve \
+            -var="vpc_name=${{ github.event.inputs.vpc_name }}" \
+            -var="cidr_block=${{ github.event.inputs.cidr_block }}" \
+            -var="aws_region=${{ github.event.inputs.aws_region }}"
+
+      - name: Terraform Output
+        if: github.event.inputs.action == 'apply'
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: terraform output
+
+      - name: Generate Backstage Resource Entity
+        if: ${{ github.event.inputs.action == 'apply' }}
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: |
+          VPC_ID=$(terraform output -raw vpc_id)
+          VPC_ARN=$(terraform output -raw vpc_arn)
+          VPC_CIDR=$(terraform output -raw vpc_cidr)
+          VPC_NAME=${{ github.event.inputs.vpc_name }}
+          VPC_REGION=${{ github.event.inputs.aws_region }}
+
+          mkdir -p /tmp/backstage-resources
+          cat > /tmp/backstage-resources/resource-vpc-${VPC_ID}.yaml <<EOF
+          apiVersion: backstage.io/v1alpha1
+          kind: Resource
+          metadata:
+            name: vpc-${VPC_ID}
+            title: ${VPC_NAME}
+            description: AWS VPC provisioned by Terraform on $(date +%Y-%m-%d)
+            annotations:
+              aws.amazon.com/vpc-id: ${VPC_ID}
+              aws.amazon.com/vpc-arn: ${VPC_ARN}
+              aws.amazon.com/vpc-region: ${VPC_REGION}
+              aws.amazon.com/vpc-cidr: ${VPC_CIDR}
+          spec:
+            type: vpc
+            owner: platform-team
+            system: opsie-platform
+          EOF
+
+      - name: Commit VPC Resource to Catalog (Create)
+        if: ${{ github.event.inputs.action == 'apply' }}
+        working-directory: ${{ github.workspace }}
+        run: |
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+
+          mkdir -p catalog/resources
+          cp /tmp/backstage-resources/resource-vpc-*.yaml catalog/resources/
+
+          git pull origin main --rebase || echo "Already up to date"
+          git add catalog/resources/resource-vpc-*.yaml
+          git commit -m "Add Backstage Resource for VPC ${{ github.event.inputs.vpc_name }}" || echo "Nothing to commit"
+          git push
+
+      - name: Delete VPC Resource from Catalog (Destroy)
+        if: ${{ github.event.inputs.action == 'destroy' }}
+        working-directory: ${{ github.workspace }}
+        run: |
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+
+          git pull origin main --rebase || echo "Already up to date"
+
+          # Find any VPC resource file that matches the name
+          FILES=$(ls catalog/resources/resource-vpc-* 2>/dev/null || true)
+          if [ -n "$FILES" ]; then
+            git rm $FILES
+            git commit -m "Remove Backstage VPC Resources for ${{ github.event.inputs.vpc_name }}" || echo "Nothing to commit"
+            git push
+          else
+            echo "No VPC resource files found to delete."
+          fi
