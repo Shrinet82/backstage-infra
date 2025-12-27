@@ -25,9 +25,9 @@ variable "aws_region" {
 }
 
 variable "major_engine_version" {
-  description = "Major engine version (e.g., 8 for MySQL 8.0)"
+  description = "Major engine version (e.g., 8.0 for MySQL 8.0)"
   type        = string
-  default     = "8"
+  default     = "8.0"
 }
 
 variable "family" {

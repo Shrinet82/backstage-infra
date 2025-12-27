@@ -20,9 +20,9 @@ on:
         required: false
         default: 'us-east-1'
       major_engine_version:
-        description: 'Major engine version (e.g., 8)'
+        description: 'Major engine version (e.g., 8.0)'
         required: false
-        default: '8'
+        default: '8.0'
       family:
         description: 'DB parameter group family (e.g., mysql8.0)'
         required: false
