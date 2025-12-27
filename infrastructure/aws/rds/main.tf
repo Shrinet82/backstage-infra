@@ -29,14 +29,17 @@ module "rds_instance" {
   skip_final_snapshot = false
 }
 
-output "db_instance_id" {
-  value = module.rds_instance.db_instance_id
+output "db_instance_identifier" {
+  description = "RDS instance identifier"
+  value       = module.rds_instance.db_instance_identifier
 }
 
 output "db_instance_arn" {
-  value = module.rds_instance.db_instance_arn
+  description = "RDS instance ARN"
+  value       = module.rds_instance.db_instance_arn
 }
 
-output "db_endpoint" {
-  value = module.rds_instance.db_instance_endpoint
+output "db_instance_endpoint" {
+  description = "RDS instance endpoint"
+  value       = module.rds_instance.db_instance_endpoint
 }

@@ -115,7 +115,7 @@ jobs:
         if: ${{ github.event.inputs.action == 'apply' }}
         working-directory: ${{ env.TF_WORKING_DIR }}
         run: |
-          DB_ID=$(terraform output -raw db_instance_id)
+          DB_ID=$(terraform output -raw db_instance_identifier)
           DB_NAME=${{ github.event.inputs.db_name }}
           DB_REGION=${{ github.event.inputs.aws_region }}
 
