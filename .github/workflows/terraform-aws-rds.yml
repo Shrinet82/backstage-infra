@@ -19,6 +19,14 @@ on:
         description: 'AWS Region'
         required: false
         default: 'us-east-1'
+      major_engine_version:
+        description: 'Major engine version (e.g., 8)'
+        required: false
+        default: '8'
+      family:
+        description: 'DB parameter group family (e.g., mysql8.0)'
+        required: false
+        default: 'mysql8.0'
       action:
         description: 'Terraform action (plan/apply/destroy)'
         required: true
@@ -81,6 +89,8 @@ jobs:
             -var="vpc_security_group_id=${{ github.event.inputs.vpc_security_group_id }}" \
             -var="db_subnet_group_name=${{ github.event.inputs.db_subnet_group_name }}" \
             -var="aws_region=${{ github.event.inputs.aws_region }}"
+            -var="major_engine_version=${{ github.event.inputs.major_engine_version }}" \
+            -var="family=${{ github.event.inputs.family }}"
 
       - name: Terraform Apply
         if: github.event.inputs.action == 'apply'
@@ -93,6 +103,8 @@ jobs:
             -var="vpc_security_group_id=${{ github.event.inputs.vpc_security_group_id }}" \
             -var="db_subnet_group_name=${{ github.event.inputs.db_subnet_group_name }}" \
             -var="aws_region=${{ github.event.inputs.aws_region }}"
+            -var="major_engine_version=${{ github.event.inputs.major_engine_version }}" \
+            -var="family=${{ github.event.inputs.family }}"
 
       - name: Terraform Destroy
         if: github.event.inputs.action == 'destroy'
@@ -105,6 +117,8 @@ jobs:
             -var="vpc_security_group_id=${{ github.event.inputs.vpc_security_group_id }}" \
             -var="db_subnet_group_name=${{ github.event.inputs.db_subnet_group_name }}" \
             -var="aws_region=${{ github.event.inputs.aws_region }}"
+            -var="major_engine_version=${{ github.event.inputs.major_engine_version }}" \
+            -var="family=${{ github.event.inputs.family }}"
 
       - name: Terraform Output
         if: github.event.inputs.action == 'apply'

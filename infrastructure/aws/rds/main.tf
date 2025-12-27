@@ -27,6 +27,10 @@ module "rds_instance" {
   db_subnet_group_name = var.db_subnet_group_name
   backup_retention_period = 7
   skip_final_snapshot = false
+  
+  # Additional engine/version settings
+  major_engine_version = var.major_engine_version
+  family               = var.family
 }
 
 output "db_instance_identifier" {

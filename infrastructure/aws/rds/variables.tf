@@ -23,3 +23,15 @@ variable "aws_region" {
   type        = string
   default     = "us-east-1"
 }
+
+variable "major_engine_version" {
+  description = "Major engine version (e.g., 8 for MySQL 8.0)"
+  type        = string
+  default     = "8"
+}
+
+variable "family" {
+  description = "DB parameter group family (e.g., mysql8.0)"
+  type        = string
+  default     = "mysql8.0"
+}
