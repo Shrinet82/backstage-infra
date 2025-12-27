@@ -84,13 +84,13 @@ jobs:
         working-directory: ${{ env.TF_WORKING_DIR }}
         run: |
           terraform plan \
-            -var="db_name=${{ github.event.inputs.db_name }}" \
-            -var="db_password=${{ github.event.inputs.db_password }}" \
-            -var="vpc_security_group_id=${{ github.event.inputs.vpc_security_group_id }}" \
-            -var="db_subnet_group_name=${{ github.event.inputs.db_subnet_group_name }}" \
-            -var="aws_region=${{ github.event.inputs.aws_region }}"
-            -var="major_engine_version=${{ github.event.inputs.major_engine_version }}" \
-            -var="family=${{ github.event.inputs.family }}"
+            -var "db_name=${{ github.event.inputs.db_name }}" \
+            -var "db_password=${{ github.event.inputs.db_password }}" \
+            -var "vpc_security_group_id=${{ github.event.inputs.vpc_security_group_id }}" \
+            -var "db_subnet_group_name=${{ github.event.inputs.db_subnet_group_name }}" \
+            -var "aws_region=${{ github.event.inputs.aws_region }}" \
+            -var "major_engine_version=${{ github.event.inputs.major_engine_version }}" \
+            -var "family=${{ github.event.inputs.family }}"
 
       - name: Terraform Apply
         if: github.event.inputs.action == 'apply'
@@ -98,13 +98,13 @@ jobs:
         run: |
           terraform apply \
             -auto-approve \
-            -var="db_name=${{ github.event.inputs.db_name }}" \
-            -var="db_password=${{ github.event.inputs.db_password }}" \
-            -var="vpc_security_group_id=${{ github.event.inputs.vpc_security_group_id }}" \
-            -var="db_subnet_group_name=${{ github.event.inputs.db_subnet_group_name }}" \
-            -var="aws_region=${{ github.event.inputs.aws_region }}"
-            -var="major_engine_version=${{ github.event.inputs.major_engine_version }}" \
-            -var="family=${{ github.event.inputs.family }}"
+            -var "db_name=${{ github.event.inputs.db_name }}" \
+            -var "db_password=${{ github.event.inputs.db_password }}" \
+            -var "vpc_security_group_id=${{ github.event.inputs.vpc_security_group_id }}" \
+            -var "db_subnet_group_name=${{ github.event.inputs.db_subnet_group_name }}" \
+            -var "aws_region=${{ github.event.inputs.aws_region }}" \
+            -var "major_engine_version=${{ github.event.inputs.major_engine_version }}" \
+            -var "family=${{ github.event.inputs.family }}"
 
       - name: Terraform Destroy
         if: github.event.inputs.action == 'destroy'
@@ -112,13 +112,13 @@ jobs:
         run: |
           terraform destroy \
             -auto-approve \
-            -var="db_name=${{ github.event.inputs.db_name }}" \
-            -var="db_password=${{ github.event.inputs.db_password }}" \
-            -var="vpc_security_group_id=${{ github.event.inputs.vpc_security_group_id }}" \
-            -var="db_subnet_group_name=${{ github.event.inputs.db_subnet_group_name }}" \
-            -var="aws_region=${{ github.event.inputs.aws_region }}"
-            -var="major_engine_version=${{ github.event.inputs.major_engine_version }}" \
-            -var="family=${{ github.event.inputs.family }}"
+            -var "db_name=${{ github.event.inputs.db_name }}" \
+            -var "db_password=${{ github.event.inputs.db_password }}" \
+            -var "vpc_security_group_id=${{ github.event.inputs.vpc_security_group_id }}" \
+            -var "db_subnet_group_name=${{ github.event.inputs.db_subnet_group_name }}" \
+            -var "aws_region=${{ github.event.inputs.aws_region }}" \
+            -var "major_engine_version=${{ github.event.inputs.major_engine_version }}" \
+            -var "family=${{ github.event.inputs.family }}"
 
       - name: Terraform Output
         if: github.event.inputs.action == 'apply'
