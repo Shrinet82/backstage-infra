@@ -27,7 +27,6 @@ module "rds_instance" {
   db_subnet_group_name = var.db_subnet_group_name
   backup_retention_period = 7
   skip_final_snapshot = false
-  final_snapshot_identifier = "backstage-rds-final"
 }
 
 output "db_instance_id" {
