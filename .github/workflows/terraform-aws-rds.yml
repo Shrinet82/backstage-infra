@@ -127,41 +127,40 @@ jobs:
 
       - name: Generate Backstage Resource Entity
         if: ${{ github.event.inputs.action == 'apply' }}
-        working-directory: ${{ env.TF_WORKING_DIR }}
+        working-directory: ./infrastructure/aws/rds
         run: |
           DB_ID=$(terraform output -raw db_instance_identifier)
+          DB_ARN=$(terraform output -raw db_instance_arn)
+          DB_ENDPOINT=$(terraform output -raw db_instance_endpoint)
           DB_NAME=${{ github.event.inputs.db_name }}
           DB_REGION=${{ github.event.inputs.aws_region }}
 
-          mkdir -p /tmp/backstage-resources
-          cat > /tmp/backstage-resources/resource-rds-${DB_NAME}.yaml <<EOF
-          apiVersion: backstage.io/v1alpha1
-          kind: Resource
-          metadata:
-            name: backstage-rds-${DB_NAME}
-            title: RDS ${DB_NAME}
-            annotations:
-              amazon.com/db-instance-id: ${DB_ID}
-              amazon.com/region: ${DB_REGION}
-          spec:
-            type: rds
-            owner: platform-team
-            system: opsie-platform
-          EOF
+          mkdir -p ../../catalog/resources
+          cat > ../../catalog/resources/resource-rds-${DB_NAME}.yaml <<EOF
+apiVersion: backstage.io/v1alpha1
+kind: Resource
+metadata:
+  name: backstage-rds-${DB_NAME}
+  description: RDS MySQL instance for ${DB_NAME}
+  annotations:
+    amazon.com/db-instance-id: ${DB_ID}
+    amazon.com/db-instance-arn: ${DB_ARN}
+    amazon.com/region: ${DB_REGION}
+spec:
+  type: database
+  owner: shrinet82
+  system: backstage-system
+EOF
 
-      - name: Commit RDS Resource to Catalog (Create)
+      - name: Commit RDS Resource to Catalog
         if: ${{ github.event.inputs.action == 'apply' }}
-        working-directory: ${{ github.workspace }}
+        working-directory: .
         run: |
-          git config user.name "GitHub Actions"
-          git config user.email "actions@github.com"
+          git config --global user.email "action@github.com"
+          git config --global user.name "GitHub Actions"
 
-          mkdir -p catalog/resources
-          cp /tmp/backstage-resources/resource-rds-*.yaml catalog/resources/
-
-          git pull origin main --rebase || echo "Already up to date"
-          git add catalog/resources/resource-rds-*.yaml
-          git commit -m "Add Backstage Resource for RDS ${{ github.event.inputs.db_name }}" || echo "Nothing to commit"
+          git add catalog/resources/resource-rds-${{ github.event.inputs.db_name }}.yaml
+          git commit -m "Add RDS resource entity for ${{ github.event.inputs.db_name }}" || echo "No changes"
           git push
 
       - name: Delete RDS Resource from Catalog (Destroy)
