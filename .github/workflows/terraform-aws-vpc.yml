@@ -16,6 +16,26 @@ on:
         required: false
         type: string
         default: 'us-east-1'
+      owner:
+        description: 'Resource owner for tagging'
+        required: false
+        type: string
+        default: 'platform-team'
+      cost_center:
+        description: 'Cost center for billing'
+        required: false
+        type: string
+        default: 'engineering'
+      enable_cost_estimation:
+        description: 'Run Infracost cost estimation'
+        required: false
+        type: boolean
+        default: true
+      notify_email:
+        description: 'Email address to notify on completion'
+        required: false
+        type: string
+        default: ''
       action:
         description: 'Action to perform'
         required: true
@@ -68,6 +88,24 @@ jobs:
       - name: Terraform Init
         working-directory: ${{ env.TF_WORKING_DIR }}
         run: terraform init
+
+      # --- INFRACOST COST ESTIMATION ---
+      - name: Setup Infracost
+        if: ${{ github.event.inputs.enable_cost_estimation == 'true' && github.event.inputs.action != 'destroy' }}
+        uses: infracost/actions/setup@v3
+        with:
+          api-key: ${{ secrets.INFRACOST_API_KEY }}
+
+      - name: Run Infracost Cost Estimation
+        if: ${{ github.event.inputs.enable_cost_estimation == 'true' && github.event.inputs.action != 'destroy' }}
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: |
+          infracost breakdown --path . \
+            --terraform-var="vpc_name=${{ github.event.inputs.vpc_name }}" \
+            --terraform-var="cidr_block=${{ github.event.inputs.cidr_block }}" \
+            --terraform-var="aws_region=${{ github.event.inputs.aws_region }}" \
+            --format table
+        continue-on-error: true
 
       - name: Terraform Plan
         working-directory: ${{ env.TF_WORKING_DIR }}
@@ -164,3 +202,33 @@ jobs:
           else
             echo "No VPC resource files found to delete."
           fi
+
+      # --- EMAIL NOTIFICATION ---
+      - name: Send Email Notification
+        if: ${{ github.event.inputs.notify_email != '' && github.event.inputs.action != 'plan' }}
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          secure: true
+          username: ${{ secrets.GMAIL_USERNAME }}
+          password: ${{ secrets.GMAIL_APP_PASSWORD }}
+          subject: "✅ Backstage: VPC '${{ github.event.inputs.vpc_name }}' - ${{ github.event.inputs.action }} completed"
+          to: ${{ github.event.inputs.notify_email }}
+          from: 'Backstage IDP <${{ secrets.GMAIL_USERNAME }}>'
+          body: |
+            Hello,
+
+            Your infrastructure request has been completed successfully!
+
+            🌐 Resource: VPC - ${{ github.event.inputs.vpc_name }}
+            📍 CIDR: ${{ github.event.inputs.cidr_block }}
+            🌍 Region: ${{ github.event.inputs.aws_region }}
+            👤 Owner: ${{ github.event.inputs.owner }}
+            💰 Cost Center: ${{ github.event.inputs.cost_center }}
+            ⚡ Action: ${{ github.event.inputs.action }}
+
+            View workflow run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+            - Backstage IDP
+        continue-on-error: true
