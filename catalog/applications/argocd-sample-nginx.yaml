@@ -1,0 +1,12 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: sample-nginx
+  description: Application deployed via ArgoCD
+  annotations:
+    argocd/app-name: sample-nginx
+    backstage.io/kubernetes-id: sample-nginx
+spec:
+  type: service
+  lifecycle: production
+  owner: platform-team
