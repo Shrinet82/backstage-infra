@@ -1,0 +1,152 @@
+name: ArgoCD Deploy Application
+
+on:
+  workflow_dispatch:
+    inputs:
+      app_name:
+        description: 'ArgoCD Application Name'
+        required: true
+        type: string
+      namespace:
+        description: 'Target Kubernetes Namespace'
+        required: false
+        type: string
+        default: 'default'
+      repo_url:
+        description: 'Git Repository URL'
+        required: true
+        type: string
+      path:
+        description: 'Path to manifests in repo'
+        required: true
+        type: string
+      branch:
+        description: 'Git Branch'
+        required: false
+        type: string
+        default: 'main'
+      sync_policy:
+        description: 'Sync Policy (manual/automated)'
+        required: false
+        type: string
+        default: 'manual'
+      prune:
+        description: 'Enable auto-prune'
+        required: false
+        type: boolean
+        default: false
+      self_heal:
+        description: 'Enable self-heal'
+        required: false
+        type: boolean
+        default: false
+      notify_email:
+        description: 'Notification Email'
+        required: false
+        type: string
+        default: ''
+
+env:
+  ARGOCD_SERVER: '139.59.77.78:32447'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install ArgoCD CLI
+        run: |
+          curl -sSL -o argocd https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64
+          chmod +x argocd
+          sudo mv argocd /usr/local/bin/
+
+      - name: Login to ArgoCD
+        run: |
+          argocd login ${{ env.ARGOCD_SERVER }} \
+            --username admin \
+            --password ${{ secrets.ARGOCD_PASSWORD }} \
+            --insecure
+
+      - name: Create ArgoCD Application
+        run: |
+          argocd app create ${{ inputs.app_name }} \
+            --repo ${{ inputs.repo_url }} \
+            --path ${{ inputs.path }} \
+            --dest-server https://kubernetes.default.svc \
+            --dest-namespace ${{ inputs.namespace }} \
+            --revision ${{ inputs.branch }} \
+            --sync-policy ${{ inputs.sync_policy == 'automated' && 'automated' || 'none' }} \
+            ${{ inputs.prune == true && '--auto-prune' || '' }} \
+            ${{ inputs.self_heal == true && '--self-heal' || '' }} \
+            --upsert
+
+          echo "✅ ArgoCD Application '${{ inputs.app_name }}' created successfully!"
+
+      - name: Sync Application (if automated)
+        if: ${{ inputs.sync_policy == 'automated' }}
+        run: |
+          argocd app sync ${{ inputs.app_name }} --force
+          argocd app wait ${{ inputs.app_name }} --timeout 300
+
+      - name: Get Application Status
+        run: |
+          argocd app get ${{ inputs.app_name }}
+
+      - name: Send Email Notification
+        if: ${{ inputs.notify_email != '' }}
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          secure: true
+          username: ${{ secrets.GMAIL_USERNAME }}
+          password: ${{ secrets.GMAIL_APP_PASSWORD }}
+          subject: "🚀 ArgoCD: Application '${{ inputs.app_name }}' deployed"
+          to: ${{ inputs.notify_email }}
+          from: 'Backstage IDP <${{ secrets.GMAIL_USERNAME }}>'
+          body: |
+            Hello,
+
+            Your application has been deployed via ArgoCD!
+
+            📦 Application: ${{ inputs.app_name }}
+            🌍 Namespace: ${{ inputs.namespace }}
+            📂 Repository: ${{ inputs.repo_url }}
+            📁 Path: ${{ inputs.path }}
+            🌿 Branch: ${{ inputs.branch }}
+            ⚙️ Sync Policy: ${{ inputs.sync_policy }}
+
+            🔗 View in ArgoCD: https://${{ env.ARGOCD_SERVER }}/applications/${{ inputs.app_name }}
+
+            - Backstage IDP
+        continue-on-error: true
+
+      - name: Generate Backstage Resource Entity
+        run: |
+          mkdir -p catalog/applications
+          cat > catalog/applications/argocd-${{ inputs.app_name }}.yaml <<EOF
+          apiVersion: backstage.io/v1alpha1
+          kind: Component
+          metadata:
+            name: ${{ inputs.app_name }}
+            description: Application deployed via ArgoCD
+            annotations:
+              argocd/app-name: ${{ inputs.app_name }}
+              backstage.io/kubernetes-id: ${{ inputs.app_name }}
+          spec:
+            type: service
+            lifecycle: production
+            owner: platform-team
+          EOF
+
+      - name: Commit Backstage Entity
+        run: |
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          git pull origin main --rebase || echo "Already up to date"
+          git add catalog/applications/
+          git commit -m "Add ArgoCD application: ${{ inputs.app_name }}" || echo "Nothing to commit"
+          git push
