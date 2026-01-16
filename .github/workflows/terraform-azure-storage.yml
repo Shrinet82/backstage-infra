@@ -1,0 +1,128 @@
+name: Deploy Azure Storage Account
+on:
+  workflow_dispatch:
+    inputs:
+      resource_group_name:
+        description: 'Name of the Resource Group'
+        required: true
+        type: string
+      storage_account_name:
+        description: 'Name of the Storage Account (must be unique)'
+        required: true
+        type: string
+      location:
+        description: 'Azure Region'
+        required: true
+        type: string
+        default: 'East US'
+      owner:
+        description: 'Owner team'
+        required: false
+        type: string
+        default: 'platform-team'
+      action:
+        description: 'Action to perform'
+        required: true
+        type: choice
+        options:
+          - plan
+          - apply
+          - destroy
+
+permissions:
+  contents: write
+
+env:
+  TF_VERSION: '1.5.0'
+  TF_WORKING_DIR: './infrastructure/azure/storage-account'
+  ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+  ARM_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+  ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+  ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+
+jobs:
+  terraform:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+          terraform_wrapper: false
+
+      - name: Terraform Init
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: terraform init
+
+      - name: Terraform Plan
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: |
+          terraform plan \
+            -var="resource_group_name=${{ github.event.inputs.resource_group_name }}" \
+            -var="storage_account_name=${{ github.event.inputs.storage_account_name }}" \
+            -var="location=${{ github.event.inputs.location }}"
+
+      - name: Terraform Apply
+        if: github.event.inputs.action == 'apply'
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: |
+          terraform apply \
+            -auto-approve \
+            -var="resource_group_name=${{ github.event.inputs.resource_group_name }}" \
+            -var="storage_account_name=${{ github.event.inputs.storage_account_name }}" \
+            -var="location=${{ github.event.inputs.location }}"
+
+      - name: Terraform Destroy
+        if: github.event.inputs.action == 'destroy'
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: |
+          terraform destroy \
+            -auto-approve \
+            -var="resource_group_name=${{ github.event.inputs.resource_group_name }}" \
+            -var="storage_account_name=${{ github.event.inputs.storage_account_name }}" \
+            -var="location=${{ github.event.inputs.location }}"
+
+      - name: Terraform Output
+        if: github.event.inputs.action == 'apply'
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: terraform output
+
+      - name: Generate Backstage Resource Entity
+        if: ${{ github.event.inputs.action == 'apply' }}
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: |
+          SA_ID=$(terraform output -raw storage_account_id)
+          SA_NAME="${{ github.event.inputs.storage_account_name }}"
+          
+          mkdir -p /tmp/backstage-resources
+          cat > /tmp/backstage-resources/resource-${SA_NAME}.yaml <<EOT
+          apiVersion: backstage.io/v1alpha1
+          kind: Resource
+          metadata:
+            name: ${SA_NAME}
+            title: ${SA_NAME}
+            description: Azure Storage Account provisioned by Terraform
+            annotations:
+              azure.com/resource-id: ${SA_ID}
+              azure.com/region: ${{ github.event.inputs.location }}
+          spec:
+            type: azure-storage-account
+            owner: ${{ github.event.inputs.owner }}
+            system: opsie-platform
+          EOT
+
+      - name: Commit Resource Entity to Catalog
+        if: ${{ github.event.inputs.action == 'apply' }}
+        working-directory: ${{ github.workspace }}
+        run: |
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          mkdir -p catalog/resources
+          cp /tmp/backstage-resources/resource-${{ github.event.inputs.storage_account_name }}.yaml catalog/resources/
+          git pull origin main --rebase || echo "Already up to date"
+          git add catalog/resources/
+          git commit -m "Add Backstage Resource for ${{ github.event.inputs.storage_account_name }}" || echo "Nothing to commit"
+          git push
