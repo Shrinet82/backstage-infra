@@ -47,7 +47,7 @@ on:
         default: ''
 
 env:
-  ARGOCD_SERVER: '139.59.77.78:32447'
+  ARGOCD_SERVER: '143.110.177.137:32477'
 
 jobs:
   deploy:
